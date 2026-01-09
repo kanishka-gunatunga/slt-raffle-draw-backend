@@ -10,6 +10,36 @@ export const getEvents = async (req: Request, res: Response) => {
             orderBy: { date: 'desc' },
             include: { gifts: true }
         });
+
+        // Dynamic Status Update Logic
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const updates = events.map(async (event) => {
+            const eventDate = new Date(event.date);
+            eventDate.setHours(0, 0, 0, 0);
+
+            let correctStatus: 'UPCOMING' | 'ACTIVE' | 'COMPLETED' = 'UPCOMING';
+
+            if (eventDate < today) {
+                correctStatus = 'COMPLETED';
+            } else if (eventDate.getTime() === today.getTime()) {
+                correctStatus = 'ACTIVE';
+            }
+
+            if (event.status !== correctStatus) {
+                // Update in DB
+                await prisma.event.update({
+                    where: { id: event.id },
+                    data: { status: correctStatus }
+                });
+                // Update in memory for response
+                event.status = correctStatus;
+            }
+        });
+
+        await Promise.all(updates);
+
         res.json(events);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching events', error });
@@ -108,3 +138,15 @@ export const deleteGift = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error deleting gift', error });
     }
 }
+
+export const deleteEvent = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        await prisma.event.delete({
+            where: { id: parseInt(id) }
+        });
+        res.json({ message: 'Event deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting event', error });
+    }
+};
