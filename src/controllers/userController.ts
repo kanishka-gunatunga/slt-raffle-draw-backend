@@ -22,28 +22,30 @@ export const createUser = async (req: Request, res: Response): Promise<any> => {
     let photoUrl: string | null = null;
 
     if (req.file) {
-        const filename = Date.now() + path.extname(req.file.originalname);
         try {
-            // Define upload path - ensure this directory exists
-            const uploadDir = path.join(process.cwd(), 'uploads');
-
-            // Try to require fs-extra or fs to write the file
-            // We use standard fs here for simplicity, or fs-extra if available
-            const fs = require('fs');
-
-            if (!fs.existsSync(uploadDir)) {
-                fs.mkdirSync(uploadDir, { recursive: true });
-            }
-
-            const filepath = path.join(uploadDir, filename);
-
-            // Write buffer to file
-            await fs.promises.writeFile(filepath, req.file.buffer);
-            photoUrl = `/uploads/${filename}`;
+            // Upload to Vercel Blob
+            const { put } = require('@vercel/blob');
+            const blob = await put(req.file.originalname, req.file.buffer, {
+                access: 'public',
+                token: process.env.BLOB_READ_WRITE_TOKEN
+            });
+            photoUrl = blob.url;
         } catch (error) {
-            console.warn("File upload skipped (likely readonly filesystem):", error);
-            // On Vercel, we can't write to disk persistently without external storage.
-            // We accept the user creation without the photo to prevent 500 error.
+            console.error("Vercel Blob upload failed:", error);
+            // Fallback for local development if Blob token is missing or fails
+            if (process.env.NODE_ENV !== 'production') {
+                try {
+                    const filename = Date.now() + path.extname(req.file.originalname);
+                    const uploadDir = path.join(process.cwd(), 'uploads');
+                    const fs = require('fs');
+                    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+                    const filepath = path.join(uploadDir, filename);
+                    await fs.promises.writeFile(filepath, req.file.buffer);
+                    photoUrl = `/uploads/${filename}`;
+                } catch (localError) {
+                    console.warn("Local fallback upload failed:", localError);
+                }
+            }
         }
     }
 
