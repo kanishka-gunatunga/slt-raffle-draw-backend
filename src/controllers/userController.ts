@@ -21,20 +21,35 @@ export const createUser = async (req: Request, res: Response): Promise<any> => {
     const { name, location } = req.body;
     let photoUrl: string | null = null;
 
+    console.log("Create user request received. Body:", req.body);
+    console.log("File present:", !!req.file);
+
     if (req.file) {
+        console.log("File details:", {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size
+        });
+
+        const token = process.env.BLOB_READ_WRITE_TOKEN;
+        console.log("Blob Token present:", !!token);
+
         try {
             // Upload to Vercel Blob
+            console.log("Attempting Vercel Blob upload...");
             const { put } = require('@vercel/blob');
             const blob = await put(req.file.originalname, req.file.buffer, {
                 access: 'public',
-                token: process.env.BLOB_READ_WRITE_TOKEN
+                token: token
             });
+            console.log("Blob upload success. URL:", blob.url);
             photoUrl = blob.url;
         } catch (error) {
             console.error("Vercel Blob upload failed:", error);
             // Fallback for local development if Blob token is missing or fails
             if (process.env.NODE_ENV !== 'production') {
                 try {
+                    console.log("Attempting local fallback...");
                     const filename = Date.now() + path.extname(req.file.originalname);
                     const uploadDir = path.join(process.cwd(), 'uploads');
                     const fs = require('fs');
@@ -42,11 +57,14 @@ export const createUser = async (req: Request, res: Response): Promise<any> => {
                     const filepath = path.join(uploadDir, filename);
                     await fs.promises.writeFile(filepath, req.file.buffer);
                     photoUrl = `/uploads/${filename}`;
+                    console.log("Local fallback success:", photoUrl);
                 } catch (localError) {
                     console.warn("Local fallback upload failed:", localError);
                 }
             }
         }
+    } else {
+        console.log("No file attached to request.");
     }
 
     try {
