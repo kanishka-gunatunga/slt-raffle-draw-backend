@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+
+  @@map("admins")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  location  String?
+  photoUrl  String?  @map("photo_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  attendances Attendance[]
+  winnings    Winner[]
+
+  @@map("users")
+}
+
+model Event {
+  id            Int         @id @default(autoincrement())
+  title         String
+  date          DateTime
+  enrollmentKey String      @unique @map("enrollment_key")
+  status        EventStatus @default(UPCOMING)
+
+  gifts       Gift[]
+  attendances Attendance[]
+  winners     Winner[]
+
+  @@map("events")
+}
+
+enum EventStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+}
+
+model Gift {
+  id       Int    @id @default(autoincrement())
+  name     String
+  imageUrl String @map("image_url")
+  rank     Int // 1 for 1st place, 2 for 2nd, etc.
+  eventId  Int    @map("event_id")
+
+  event   Event    @relation(fields: [eventId], references: [id])
+  winners Winner[]
+
+  @@map("gifts")
+}
+
+model Attendance {
+  eventId   Int              @map("event_id")
+  userId    Int              @map("user_id")
+  status    AttendanceStatus @default(PRESENT)
+  scannedAt DateTime         @default(now()) @map("scanned_at")
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@id([eventId, userId])
+  @@map("attendance")
+}
+
+enum AttendanceStatus {
+  INVITED
+  PRESENT
+  ABSENT
+}
+
+model Winner {
+  id      Int      @id @default(autoincrement())
+  eventId Int      @map("event_id")
+  giftId  Int      @map("gift_id")
+  userId  Int      @map("user_id")
+  wonAt   DateTime @default(now()) @map("won_at")
+
+  event Event @relation(fields: [eventId], references: [id])
+  gift  Gift  @relation(fields: [giftId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([eventId, userId]) // User can win max 1 gift per event
+  @@unique([eventId, giftId]) // Gift can be won by only 1 person
+  @@map("winners")
+}
