@@ -6,16 +6,7 @@ import path from 'path';
 const prisma = new PrismaClient();
 
 // Configure Multer
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // Make sure this directory exists
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    },
-});
-
-export const upload = multer({ storage });
+export const upload = multer({ storage: multer.memoryStorage() });
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -28,7 +19,33 @@ export const getUsers = async (req: Request, res: Response) => {
 
 export const createUser = async (req: Request, res: Response): Promise<any> => {
     const { name, location } = req.body;
-    const photoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    let photoUrl: string | null = null;
+
+    if (req.file) {
+        const filename = Date.now() + path.extname(req.file.originalname);
+        try {
+            // Define upload path - ensure this directory exists
+            const uploadDir = path.join(process.cwd(), 'uploads');
+
+            // Try to require fs-extra or fs to write the file
+            // We use standard fs here for simplicity, or fs-extra if available
+            const fs = require('fs');
+
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+
+            const filepath = path.join(uploadDir, filename);
+
+            // Write buffer to file
+            await fs.promises.writeFile(filepath, req.file.buffer);
+            photoUrl = `/uploads/${filename}`;
+        } catch (error) {
+            console.warn("File upload skipped (likely readonly filesystem):", error);
+            // On Vercel, we can't write to disk persistently without external storage.
+            // We accept the user creation without the photo to prevent 500 error.
+        }
+    }
 
     try {
         const user = await prisma.user.create({
@@ -40,6 +57,7 @@ export const createUser = async (req: Request, res: Response): Promise<any> => {
         });
         res.status(201).json(user);
     } catch (error) {
+        console.error("Database error creating user:", error);
         res.status(500).json({ message: 'Error creating user', error });
     }
 };
