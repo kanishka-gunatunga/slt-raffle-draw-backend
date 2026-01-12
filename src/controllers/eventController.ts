@@ -5,10 +5,19 @@ import crypto from 'crypto';
 const prisma = new PrismaClient();
 
 export const getEvents = async (req: Request, res: Response) => {
+    console.log("DEBUG: executing getEvents V5 - With Winners Include");
     try {
         const events = await prisma.event.findMany({
             orderBy: { date: 'desc' },
-            include: { gifts: true }
+            include: {
+                gifts: true,
+                winners: {
+                    include: {
+                        user: true,
+                        gift: true
+                    }
+                }
+            }
         });
 
         // Dynamic Status Update Logic
@@ -21,8 +30,10 @@ export const getEvents = async (req: Request, res: Response) => {
 
             let correctStatus: 'UPCOMING' | 'ACTIVE' | 'COMPLETED' = 'UPCOMING';
 
-            if (eventDate < today) {
+            if (event.winners && event.winners.length > 0) {
                 correctStatus = 'COMPLETED';
+            } else if (eventDate < today) {
+                correctStatus = 'ACTIVE';
             } else if (eventDate.getTime() === today.getTime()) {
                 correctStatus = 'ACTIVE';
             }
