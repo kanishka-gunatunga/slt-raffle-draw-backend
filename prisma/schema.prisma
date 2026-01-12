@@ -55,7 +55,7 @@ model Gift {
   rank     Int // 1 for 1st place, 2 for 2nd, etc.
   eventId  Int    @map("event_id")
 
-  event   Event    @relation(fields: [eventId], references: [id])
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   winners Winner[]
 
   @@map("gifts")
@@ -67,7 +67,7 @@ model Attendance {
   status    AttendanceStatus @default(PRESENT)
   scannedAt DateTime         @default(now()) @map("scanned_at")
 
-  event Event @relation(fields: [eventId], references: [id])
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id])
 
   @@id([eventId, userId])
@@ -87,7 +87,7 @@ model Winner {
   userId  Int      @map("user_id")
   wonAt   DateTime @default(now()) @map("won_at")
 
-  event Event @relation(fields: [eventId], references: [id])
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   gift  Gift  @relation(fields: [giftId], references: [id])
   user  User  @relation(fields: [userId], references: [id])
 
